@@ -65,6 +65,7 @@ add_executable(mlpack_test
   recurrent_network_test.cpp
   reward_clipping_test.cpp
   rl_components_test.cpp
+  rvm_rergession_test.cpp
   serialization.cpp
   serialization.hpp
   serialization_test.cpp
