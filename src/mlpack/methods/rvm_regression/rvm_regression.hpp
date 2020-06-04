@@ -10,7 +10,6 @@
 #define MLPACK_METHODS_RVM_REGRESSION_HPP
 
 #include <mlpack/prereqs.hpp>
-#include "utils.hpp"
 
 namespace mlpack{
 namespace regression{
@@ -25,7 +24,7 @@ public:
    *    the mlpack::kernel namespace.
    *    Regulariation parameters are automaticaly set to their optimal values by 
    *    maximizing the marginal likelihood. Optimization is done by Evidence
-   *    Maximization.
+   *    Maximization. A REFORMULER
    * @param kernel Kernel to be used for computation.
    * @param centerData Whether or not center the data according to the *
    *    examples.
@@ -34,7 +33,8 @@ public:
    **/
   RVMRegression(const KernelType& kernel,
                 const bool centerData,
-                const bool scaleData);
+                const bool scaleData,
+                const bool ard);
 
   /**
    * Set the parameters of the ARD regression (Automatic Relevance Determination) 
@@ -114,22 +114,23 @@ public:
               const arma::rowvec& responses) const;
 
   /**
-   * Get the coefficents of the full solution vector.
-   * The 0 are associated to the inactive basis functions.
-   **/
-  arma::vec getCoefs() const;
+   * Get the solution vector
+   *
+   * @return omega Solution vector.
+   */
+  arma::colvec Omega() const;
 
   /**
    * Get the precesion (or inverse variance) beta of the model.
    * @return \f$ \beta \f$ 
    **/
-  inline double getBeta() const {return this->beta;}
+  double Beta() const { return this->beta; }
 
   /**
    * Get the estimated variance.
    * @return 1.0 / \f$ \beta \f$
    **/
-  inline double getVariance() const {return 1.0 / this->getBeta();}
+  double Variance() const { return 1.0 / this->getBeta(); }
 
 
   /**
@@ -137,8 +138,29 @@ public:
    * 
    * @return activeSet 
    **/
-  inline arma::uvec getActiveSet() const { return this->activeSet; }
+  arma::uvec ActiveSet() const { return this->activeSet; }
 
+  /**
+   * Get the mean vector computed on the features over the training points.
+   * Vector of 0 if centerData is false.
+   *   
+   * @return responsesOffset
+   */
+  const arma::colvec& DataOffset() const { return dataOffset; }
+
+  /**
+   * Get the vector of standard deviations computed on the features over the 
+   * training points. Vector of 1 if scaleData is false.
+   *  
+   * return dataOffset
+   */
+  const arma::colvec& DataScale() const { return dataScale; }
+
+  /**
+   * Get the mean value of the train responses.
+   * @return responsesOffset
+   */
+  double ResponsesOffset() const { return responsesOffset; }
 
 private:
   //! Center the data if true.
@@ -148,13 +170,13 @@ private:
   bool scaleData;
 
   //! Mean vector computed over the points.
-  arma::colvec data_offset;
+  arma::colvec dataOffset;
 
   //! Std vector computed over the points.
-  arma::colvec data_scale;
+  arma::colvec dataScale;
 
   //! Mean of the response vector computed over the points.
-  double responses_offset;
+  double responsesOffset;
 
   //! alpha_threshold limit to prune the basis functions.
   float alpha_threshold;
@@ -162,8 +184,8 @@ private:
   //! kernel Kernel used.
   KernelType kernel;
 
-  //! Indicates if ARD regression mode is used.
-  bool ardRegression;
+  //! Indicates that ARD mode is used.
+  bool ard;
 
   //! Kernel length scale.
   double gamma;
@@ -185,6 +207,32 @@ private:
 
   //! activeSetive Indices of active basis functions.
   arma::uvec activeSet;
+
+  /**
+   * Center and scaleData the data. The last four arguments
+   * allow future modifation of new points.
+   *
+   * @param data Design matrix in column-major format, dim(P,N).
+   * @param responses A vector of targets.
+   * @param centerData If true data will be centred according to the points.
+   * @param centerData If true data will be scales by the standard deviations
+   *     of the features computed according to the points.
+   * @param dataProc data processed, dim(N,P).
+   * @param responsesProc responses processed, dim(N).
+   * @param dataOffset Mean vector of the design matrix according to the 
+   *     points, dim(P).
+   * @param dataScale Vector containg the standard deviations of the features
+   *     dim(P).
+   * @return reponsesOffset Mean of responses.
+   */
+  double CenterScaleData(const arma::mat& data,
+		  const arma::rowvec& responses,
+		  bool centerData,
+		  bool scaleData,
+		  arma::mat& dataProc,
+		  arma::rowvec& responsesProc,
+		  arma::colvec& dataOffset,
+		  arma::colvec& dataScale);
 
 };
 } // namespace regression

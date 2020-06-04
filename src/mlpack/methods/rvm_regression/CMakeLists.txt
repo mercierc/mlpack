@@ -3,8 +3,7 @@
 set(SOURCES
   rvm_regression.hpp
   rvm_regression_impl.hpp
-  rvm_regression.cpp
-  rmv_regression_main.cpp
+  #rvm_regression_main.cpp
 )
 
 # add directory name to sources
@@ -16,5 +15,5 @@ endforeach()
 set(MLPACK_SRCS ${MLPACK_SRCS} ${DIR_SRCS} PARENT_SCOPE)
 
 add_cli_executable(rvm_regression)
-add_python_binding(rvm_regression)
-add_markdown_docs(rvm_regression "cli;python" "regression")
+#add_python_binding(rvm_regression)
+#add_markdown_docs(rvm_regression "cli;python" "regression")
