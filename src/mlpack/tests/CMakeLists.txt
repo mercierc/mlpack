@@ -93,7 +93,7 @@ add_executable(mlpack_test
   regularized_svd_test.cpp
   reward_clipping_test.cpp
   rl_components_test.cpp
-  rvm_rergession_test.cpp
+  # rvm_rergession_test.cpp
   serialization.cpp
   serialization.hpp
   serialization_test.cpp
