@@ -190,8 +190,8 @@ private:
   //! Kernel length scale.
   double gamma;
 
-  //! Train database.
-  arma::mat phi;
+  //! Relevant vectors.
+  arma::mat relevantVectors;
 
   //! Precision of the prior pdfs (independant gaussian).
   arma::rowvec alpha;
