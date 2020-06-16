@@ -52,7 +52,7 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
                                     scaleData, 
                                     phi, 
                                     t,
-		                    dataOffset, 
+		                            dataOffset, 
                                     dataScale);
 
   // When ard is set to true the kernel is ignored and we work in the original 
@@ -61,12 +61,13 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
   {
     relevantVectors = phi;
     applyKernel(data, data, phi);
+    std::cout << phi.n_rows << " - " << phi.n_cols << std::endl;
    }
   // Initialize the hyperparameters and begin with an infinitely broad prior.
   alpha_threshold = 1e4;
-  alpha = arma::ones<arma::rowvec>(phi.n_rows) * 1e-4;
+  alpha = arma::ones<arma::rowvec>(phi.n_rows) * 1e-6;
   beta =  1 / arma::var(t, 1);
-
+  
   // Loop variables.
   double tol = 1e-5;
   double normOmega = 1.0;
@@ -80,36 +81,42 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
   // Initiaze a vector of all the indices from the first
   // to the last point.
   arma::uvec allCols(phi.n_cols);
+
   for (size_t i = 0; i < phi.n_cols; ++i) { allCols(i) = i; }
 
   while ((crit > tol) && (i < nIterMax))
   {
     crit = -normOmega;
     activeSet = find(alpha < alpha_threshold);
+
     // Prune out the inactive basis functions. This procedure speeds up
     // the algorithm.
-    subPhi = phi.submat(activeSet, allCols);
-    matCovariance = inv(diagmat(alpha.elem(activeSet)) + subPhi * subPhi.t() * beta);
+    subPhi = arma::mat(phi.submat(activeSet, allCols));
+    // matCovariance = inv(diagmat(alpha(activeSet)) + subPhi * subPhi.t() * beta);
+    matCovariance  = subPhi * subPhi.t() * beta;
+    matCovariance.diag() += alpha(activeSet);
+    matCovariance = inv(matCovariance);
+    std::cout << matCovariance.submat(0, 0, 3, 3) << std::endl;
     // Compute the solution for al the active basis functions.
     // omega = solve(diagmat(alpha.elem(activeSet) / beta) + subPhi * subPhi.t(),
     //               subPhi * t.t());
     omega = matCovariance * subPhi * t.t() * beta;
+    // FIX ME std::cout << omega.head(3) << std::endl;
     // Update alpha.
     gammai = 1 - matCovariance.diag().t() % alpha(activeSet).t();
     alpha(activeSet) = gammai / (omega % omega).t(); 
-    std::cout << "update beta " << std::endl;
+    
     // Update beta.
     const arma::rowvec temp = t -  omega.t() * subPhi;
     beta = (phi.n_cols - sum(gammai)) / dot(temp, temp);
 
     // Comptute the stopping criterion.
     normOmega = norm(omega);
-    crit = abs(crit + normOmega) / normOmega;
+    crit = std::abs(crit + normOmega) / normOmega;
     i++;
   }
   // Compute the covariance matrice for the uncertaities later.
   std::cout << "End of training " << std::endl;
-  matCovariance = inv(diagmat(alpha.elem(activeSet)) + subPhi * subPhi.t() * beta);
 
   if (!ard)
   {
@@ -126,10 +133,15 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
   arma::mat matX;
   // Manage the kernel.
   if (!ard)
+  {
     applyKernel(relevantVectors, points, matX);
+  }
   else
-    matX = points;
-
+  {
+    arma::uvec allCols(points.n_cols);
+    for ( size_t i = 0; i < allCols.n_elem; ++i) { allCols(i) = i; }
+    matX = arma::mat(points.submat(activeSet, allCols));
+  }
   // Center and scaleData the points before applying the model.
   predictions = omega.t() * matX + responsesOffset;
 }
@@ -167,24 +179,22 @@ double RVMRegression<KernelType>::RMSE(const arma::mat& data,
 {
   arma::rowvec predictions;
   Predict(data, predictions);
-  return sqrt(
-	      mean(
-		  square(responses - predictions)));
+  return sqrt(mean(square(responses - predictions)));
 }
 
-template<typename KernelType>
-arma::colvec RVMRegression<KernelType>::Omega() const
-{
-  // Get the size of the full solution with the offset.
-  arma::colvec coefs = arma::zeros<arma::colvec>(dataOffset.size());
-  // omega[i] = 0 for the inactive basis functions
+// template<typename KernelType>
+// arma::colvec RVMRegression<KernelType>::Omega() const
+// {
+//   // Get the size of the full solution with the offset.
+//   arma::colvec coefs = arma::zeros<arma::colvec>(dataOffset.size());
+//   // omega[i] = 0 for the inactive basis functions
 
-  // Now reconstruct the full solution.
-  for (size_t i = 0; i < activeSet.size(); i++)
-    coefs[activeSet[i]] = omega(i);
+//   // Now reconstruct the full solution.
+//   for (size_t i = 0; i < activeSet.size(); i++)
+//     coefs[activeSet[i]] = omega(i);
   
-  return coefs;
-}
+//   return coefs;
+// }
 
 template<typename KernelType>
 void RVMRegression<KernelType>::applyKernel(const arma::mat& matX,

@@ -118,27 +118,32 @@ public:
    *
    * @return omega Solution vector.
    */
-  arma::colvec Omega() const;
+  const arma::colvec& Omega() const { return omega; };
 
   /**
    * Get the precesion (or inverse variance) beta of the model.
    * @return \f$ \beta \f$ 
    **/
-  double Beta() const { return this->beta; }
+  double Beta() const { return beta; }
+
+   /**
+   * Get the precesion (or inverse variance) of the coeffcients.
+   * @return \f$ \alpha_{i} \f$ 
+   **/
+  const arma::rowvec& Alpha() const { return alpha; }
 
   /**
    * Get the estimated variance.
    * @return 1.0 / \f$ \beta \f$
    **/
-  double Variance() const { return 1.0 / this->getBeta(); }
-
+  double Variance() const { return 1.0 / Beta(); }
 
   /**
    * Get the indices of the active basis functions.
    * 
    * @return activeSet 
    **/
-  arma::uvec ActiveSet() const { return this->activeSet; }
+  arma::uvec ActiveSet() const { return activeSet; }
 
   /**
    * Get the mean vector computed on the features over the training points.
