@@ -21,22 +21,33 @@ template<typename KernelType>
 RVMRegression<KernelType>::RVMRegression(const KernelType& kernel,
                                          const bool centerData,
                                          const bool scaleData,
-                                         const bool ard) :
+                                         const bool ard,
+					 double alphaThresh,
+					 double tol,
+					 int nIterMax) :
 
   kernel(kernel),
   centerData(centerData),
   scaleData(scaleData),
-  ard(ard) 
-  {/*Nothing to do */}
+  ard(ard),
+  alphaThresh(1e-4),
+  tol(1e-5),
+  nIterMax(50) 
+  { /*Nothing to do */ }
 
 template <typename KernelType>
-RVMRegression<KernelType>::RVMRegression(const bool centerData,
-                                         const bool scaleData) :
-    centerData(centerData),
-    scaleData(scaleData),
-    kernel(kernel::LinearKernel()),
-    ard(false) 
-  {/*Nothing to do*/}
+RVMRegression<KernelType>::RVMRegression(const KernelType& kernel,
+                                         const bool centerData,
+                                         const bool scaleData,
+                                         const bool ard) :
+  kernel(kernel),
+  centerData(centerData),
+  scaleData(scaleData),
+  ard(ard),
+  alphaThresh(1e4),
+  tol(1e-5),
+  nIterMax(50) 
+  { /*Nothing to do*/ }
 
 template<typename KernelType>
 void RVMRegression<KernelType>::Train(const arma::mat& data,
@@ -44,68 +55,53 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
 {
   arma::mat phi = data;
   arma::rowvec t;
-  
+
   // Preprocess the data. Center and scaleData.
-  responsesOffset = CenterScaleData(phi, 
-                                    responses, 
-                                    centerData, 
-                                    scaleData, 
-                                    phi, 
-                                    t,
-		                            dataOffset, 
-                                    dataScale);
+  responsesOffset = CenterScaleData(phi, responses, phi, t);
 
   // When ard is set to true the kernel is ignored and we work in the original 
   // input space.
   if (!ard)
   {
     relevantVectors = phi;
-    applyKernel(data, data, phi);
-    std::cout << phi.n_rows << " - " << phi.n_cols << std::endl;
-   }
+    applyKernel(data, phi);
+  }
   // Initialize the hyperparameters and begin with an infinitely broad prior.
-  alpha_threshold = 1e4;
-  alpha = arma::ones<arma::rowvec>(phi.n_rows) * 1e-6;
+  alpha = arma::colvec(phi.n_rows).fill(1e-6);
+  arma::colvec gammai = arma::zeros<arma::colvec>(phi.n_rows);
   beta =  1 / arma::var(t, 1);
   
   // Loop variables.
-  double tol = 1e-5;
   double normOmega = 1.0;
   double crit = 1.0;
-  unsigned short nIterMax = 50;
   unsigned short i = 0;
-  unsigned short ind_act;
 
-  arma::rowvec gammai = arma::zeros<arma::rowvec>(phi.n_rows);
   arma::mat subPhi;
   // Initiaze a vector of all the indices from the first
   // to the last point.
   arma::uvec allCols(phi.n_cols);
-
   for (size_t i = 0; i < phi.n_cols; ++i) { allCols(i) = i; }
 
   while ((crit > tol) && (i < nIterMax))
   {
     crit = -normOmega;
-    activeSet = find(alpha < alpha_threshold);
+    activeSet = find(alpha < alphaThresh);
 
     // Prune out the inactive basis functions. This procedure speeds up
     // the algorithm.
-    subPhi = arma::mat(phi.submat(activeSet, allCols));
-    // matCovariance = inv(diagmat(alpha(activeSet)) + subPhi * subPhi.t() * beta);
+    subPhi = phi.submat(activeSet, allCols);
+
+    // Update the posterior statistics.
     matCovariance  = subPhi * subPhi.t() * beta;
     matCovariance.diag() += alpha(activeSet);
     matCovariance = inv(matCovariance);
-    std::cout << matCovariance.submat(0, 0, 3, 3) << std::endl;
-    // Compute the solution for al the active basis functions.
-    // omega = solve(diagmat(alpha.elem(activeSet) / beta) + subPhi * subPhi.t(),
-    //               subPhi * t.t());
+
     omega = matCovariance * subPhi * t.t() * beta;
-    // FIX ME std::cout << omega.head(3) << std::endl;
+
     // Update alpha.
-    gammai = 1 - matCovariance.diag().t() % alpha(activeSet).t();
-    alpha(activeSet) = gammai / (omega % omega).t(); 
-    
+    gammai = 1 - matCovariance.diag() % alpha(activeSet);
+    alpha(activeSet) = gammai / (omega % omega); 
+
     // Update beta.
     const arma::rowvec temp = t -  omega.t() * subPhi;
     beta = (phi.n_cols - sum(gammai)) / dot(temp, temp);
@@ -115,14 +111,22 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
     crit = std::abs(crit + normOmega) / normOmega;
     i++;
   }
-  // Compute the covariance matrice for the uncertaities later.
-  std::cout << "End of training " << std::endl;
 
   if (!ard)
   {
     arma::uvec allRows(relevantVectors.n_rows);
     for (size_t i = 0; i < relevantVectors.n_rows; ++i) { allRows(i) = i; }
     relevantVectors = relevantVectors.submat(allRows, activeSet);
+  }
+  
+  // Keep the active basis functions only.
+  else
+  {
+    if (centerData)
+      dataOffset = dataOffset(activeSet);
+
+    if (scaleData)
+      dataScale = dataScale(activeSet);
   }
 }
 
@@ -133,16 +137,17 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
   arma::mat matX;
   // Manage the kernel.
   if (!ard)
-  {
-    applyKernel(relevantVectors, points, matX);
+  { 
+    CenterScaleDataPred(points, matX);
+    applyKernel(relevantVectors, matX, matX);
   }
   else
   {
     arma::uvec allCols(points.n_cols);
     for ( size_t i = 0; i < allCols.n_elem; ++i) { allCols(i) = i; }
-    matX = arma::mat(points.submat(activeSet, allCols));
+    matX = points.submat(activeSet, allCols);
+    CenterScaleDataPred(matX, matX);
   }
-  // Center and scaleData the points before applying the model.
   predictions = omega.t() * matX + responsesOffset;
 }
 
@@ -154,7 +159,9 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
   arma::mat matX;
   // Manage the kernel.
   if (!ard)
+  {
     applyKernel(relevantVectors, points, matX);
+  }
   else
     matX = points;
 
@@ -214,8 +221,22 @@ void RVMRegression<KernelType>::applyKernel(const arma::mat& matX,
   // kernel matrix, since it is symmetric. This helps minimize the number of
   // kernel evaluations.
   for (size_t i = 0; i < matX.n_cols; ++i)
-    for (size_t j = i; j < matY.n_cols; ++j)
+    for (size_t j = 0; j < matY.n_cols; ++j)
       kernelMatrix(i, j) = kernel.Evaluate(matX.col(i), matY.col(j));
+}
+
+template<typename KernelType>
+void RVMRegression<KernelType>::applyKernel(const arma::mat& matX,
+					    arma::mat& kernelMatrix) const {
+
+
+  kernelMatrix = arma::mat(matX.n_cols, matX.n_cols);
+  // Note that we only need to calculate the upper triangular part of the
+  // kernel matrix, since it is symmetric. This helps minimize the number of
+  // kernel evaluations.
+  for (size_t i = 0; i < matX.n_cols; ++i)
+    for (size_t j = i; j < matX.n_cols; ++j)
+      kernelMatrix(i, j) = kernel.Evaluate(matX.col(i), matX.col(j));
     
   // Copy to the lower triangular part of the matrix.
   for (size_t i = 1; i < matX.n_cols; ++i)
@@ -224,38 +245,59 @@ void RVMRegression<KernelType>::applyKernel(const arma::mat& matX,
 }
 
 template<typename KernelType>
-double RVMRegression<KernelType>::CenterScaleData(const arma::mat& data,
-                                                  const arma::rowvec& responses,
-                                                  bool centerData,
-				                  bool scaleData,
-                                                  arma::mat& dataProc,
-				                  arma::rowvec& responsesProc,
-				                  arma::colvec& dataOffset,
-				                  arma::colvec& dataScale)
+double RVMRegression<KernelType>::CenterScaleData(
+    const arma::mat& data,
+    const arma::rowvec& responses,
+    arma::mat& dataProc,
+    arma::rowvec& responsesProc)
 {
   // Initialize the offsets to their neutral forms.
-  dataOffset = arma::zeros<arma::colvec>(data.n_rows);
-  dataScale = arma::ones<arma::colvec>(data.n_rows);
   responsesOffset = 0.0;
+  if (!centerData && !scaleData)
+  {  
+    dataProc = data;
+    responsesProc = responses;
+  }
 
-  if (centerData)
+  else if (centerData && !scaleData)
   {
     dataOffset = mean(data, 1);
     responsesOffset = mean(responses);
+    dataProc = data.each_col() - dataOffset;
+    responsesProc = responses - responsesOffset;
   }
 
-  if (scaleData)
+  else if (!centerData && scaleData)
+  {
     dataScale = stddev(data, 0, 1);
+    dataProc = data.each_col() / dataScale;
+  }
 
-  // Copy data and response before the processing.
-  dataProc = data;
-  // Center the data.
-  dataProc.each_col() -= dataOffset;
-  // Scale the data.
-  dataProc.each_col() /= dataScale;
-  // Center the responses.
-  responsesProc = responses - responsesOffset;
-
+  else
+  {
+    dataOffset = mean(data, 1);
+    dataScale = stddev(data, 1, 1);
+    responsesOffset = mean(responses);
+    dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
+    responsesProc = responses - responsesOffset;
+  }
   return responsesOffset;
+}
+
+template<typename KernelType>
+void RVMRegression<KernelType>::CenterScaleDataPred(const arma::mat& data,
+					            arma::mat& dataProc) const
+{
+  if (!centerData && !scaleData)
+  dataProc = data;
+  
+  else if (centerData && !scaleData)
+    dataProc = data.each_col() - dataOffset;
+
+  else if (!centerData && scaleData)
+    dataProc = data.each_col() / dataScale;
+
+  else 
+    dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
 }
 #endif

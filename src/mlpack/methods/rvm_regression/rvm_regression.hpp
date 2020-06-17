@@ -34,7 +34,10 @@ public:
   RVMRegression(const KernelType& kernel,
                 const bool centerData,
                 const bool scaleData,
-                const bool ard);
+                const bool ard,
+		const double alphaTresh,
+		const double tol,
+		const int nIterMax);
 
   /**
    * Set the parameters of the ARD regression (Automatic Relevance Determination) 
@@ -51,8 +54,10 @@ public:
    * @param scaleData Whether or to scaleData the data according to the 
    *    standard deviation of each feature.
    **/
-  RVMRegression(const bool centerData = true,
-                const bool scaleData = false);
+  RVMRegression(const KernelType& kernel,
+		const bool centerData = false,
+                const bool scaleData = false,
+		const bool ard = true);
    
   /**
    * Run Relevance Vector Machine for regression. The input matrix 
@@ -89,18 +94,6 @@ public:
   void Predict(const arma::mat& points,
                arma::rowvec& predictions,
 	       arma::rowvec& std) const;
-
-  /**
-   * Apply the kernel function between the column vectors of two matrices 
-   *    X and Y. If X=Y this function comptutes the Gramian matrix.
-   * @param X Matrix of dimension \f$ M \times N1 \f$.
-   * @param Y Matrix of dimension \f$ M \times N2 \f$.
-   * @param gramMatrix of dimension \f$N1 \times N2\f$. Elements are equal
-   *    to kernel.Evaluate(\f$ x_{i} \f$,\f$ y_{j} \f$).
-   **/
-  void applyKernel(const arma::mat& X,
-		   const arma::mat& Y,
-		   arma::mat& gramMatrix) const;
   
   /**
    * Compute the Root Mean Square Error
@@ -143,7 +136,7 @@ public:
    * 
    * @return activeSet 
    **/
-  arma::uvec ActiveSet() const { return activeSet; }
+  const arma::uvec& ActiveSet() const { return activeSet; }
 
   /**
    * Get the mean vector computed on the features over the training points.
@@ -183,14 +176,20 @@ private:
   //! Mean of the response vector computed over the points.
   double responsesOffset;
 
-  //! alpha_threshold limit to prune the basis functions.
-  float alpha_threshold;
+  //! Indicates that ARD mode is used.
+  bool ard;
+
+  //! alphaThresh limit to prune the basis functions.
+  double alphaThresh;
+
+  //! Level from which the solution is considered sufficientlly stable.
+  double tol;
+
+  //! Maximum number of iterations for convergency.
+  int nIterMax;  
 
   //! kernel Kernel used.
   KernelType kernel;
-
-  //! Indicates that ARD mode is used.
-  bool ard;
 
   //! Kernel length scale.
   double gamma;
@@ -199,7 +198,7 @@ private:
   arma::mat relevantVectors;
 
   //! Precision of the prior pdfs (independant gaussian).
-  arma::rowvec alpha;
+  arma::colvec alpha;
 
   //! Noise inverse variance.
   double beta;
@@ -214,31 +213,52 @@ private:
   arma::uvec activeSet;
 
   /**
-   * Center and scaleData the data. The last four arguments
-   * allow future modifation of new points.
+   * Center and scale the data. The last four arguments
+   * allow future modification of new points.
    *
-   * @param data Design matrix in column-major format, dim(P,N).
+   * @param data Design matrix in column-major format, dim(P, N).
    * @param responses A vector of targets.
    * @param centerData If true data will be centred according to the points.
    * @param centerData If true data will be scales by the standard deviations
    *     of the features computed according to the points.
    * @param dataProc data processed, dim(N,P).
    * @param responsesProc responses processed, dim(N).
-   * @param dataOffset Mean vector of the design matrix according to the 
-   *     points, dim(P).
-   * @param dataScale Vector containg the standard deviations of the features
-   *     dim(P).
+   *
    * @return reponsesOffset Mean of responses.
    */
   double CenterScaleData(const arma::mat& data,
-		  const arma::rowvec& responses,
-		  bool centerData,
-		  bool scaleData,
-		  arma::mat& dataProc,
-		  arma::rowvec& responsesProc,
-		  arma::colvec& dataOffset,
-		  arma::colvec& dataScale);
+                         const arma::rowvec& responses,
+                         arma::mat& dataProc,
+                         arma::rowvec& responsesProc);
 
+  /**
+   * Center and scale the points before prediction.
+   * 
+   * @param data Design matrix in column-major format, dim(P, N).
+   * @param responsesProc responses processed, dim(N).
+  */ 
+  void CenterScaleDataPred(const arma::mat& data, 
+                           arma::mat& dataProc) const;
+  /**
+   * Apply the kernel function between the column vectors of two matrices 
+   *    X and Y.
+   * @param matX Matrix of dimension \f$ M \times N1 \f$.
+   * @param matY Matrix of dimension \f$ M \times N2 \f$.
+   * @param kernelMatrix Matrix of dimension \f$N1 \times N2\f$. 
+   **/
+  void applyKernel(const arma::mat& matX,
+		   const arma::mat& matY,
+		   arma::mat& kernelMatrix) const;
+
+  /**
+   * Construct the symmetric kernel matrix from one matrix by copying the 
+   * upper triangular part in the lower triangular part.
+   *
+   * @param matX Marix of dimension \f$ M \times N1 \f$.
+   * @param kernelMatrix of dimension \f$N1 \times N2\f$. Elements are equal.
+   */
+  void applyKernel(const arma::mat& matX,
+		   arma::mat& kernelMatrix) const;
 };
 } // namespace regression
 } // namespace mlpack
