@@ -53,18 +53,20 @@ template<typename KernelType>
 void RVMRegression<KernelType>::Train(const arma::mat& data,
                                       const arma::rowvec& responses)
 {
-  arma::mat phi = data;
+  arma::mat phi;
   arma::rowvec t;
 
   // Preprocess the data. Center and scaleData.
-  responsesOffset = CenterScaleData(phi, responses, phi, t);
+  responsesOffset = CenterScaleData(data, responses, phi, t);
 
   // When ard is set to true the kernel is ignored and we work in the original 
-  // input space.
+  // input space. 
   if (!ard)
   {
+    arma::mat kernelMatrix;
     relevantVectors = phi;
-    applyKernel(data, phi);
+    applyKernel(phi, kernelMatrix);
+    phi = std::move(kernelMatrix);
   }
   // Initialize the hyperparameters and begin with an infinitely broad prior.
   alpha = arma::colvec(phi.n_rows).fill(1e-6);
@@ -137,9 +139,11 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
   arma::mat matX;
   // Manage the kernel.
   if (!ard)
-  { 
+  {
+    arma::mat kernelMatrix;
     CenterScaleDataPred(points, matX);
-    applyKernel(relevantVectors, matX, matX);
+    applyKernel(relevantVectors, matX, kernelMatrix);
+    matX = std::move(kernelMatrix);
   }
   else
   {
@@ -254,7 +258,7 @@ double RVMRegression<KernelType>::CenterScaleData(
   // Initialize the offsets to their neutral forms.
   responsesOffset = 0.0;
   if (!centerData && !scaleData)
-  {  
+  { 
     dataProc = data;
     responsesProc = responses;
   }
@@ -269,7 +273,7 @@ double RVMRegression<KernelType>::CenterScaleData(
 
   else if (!centerData && scaleData)
   {
-    dataScale = stddev(data, 0, 1);
+    dataScale = stddev(data, 1, 1);
     dataProc = data.each_col() / dataScale;
   }
 
