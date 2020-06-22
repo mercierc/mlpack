@@ -14,8 +14,8 @@
 
 #include "rvm_regression.hpp"
 
-using namespace mlpack;
-using namespace mlpack::regression;
+namespace mlpack {
+namespace regression {
 
 template<typename KernelType>
 RVMRegression<KernelType>::RVMRegression(const KernelType& kernel,
@@ -56,7 +56,7 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
   arma::mat phi;
   arma::rowvec t;
 
-  // Preprocess the data. Center and scaleData.
+  // Preprocess the data.
   responsesOffset = CenterScaleData(data, responses, phi, t);
 
   // When ard is set to true the kernel is ignored and we work in the original 
@@ -164,24 +164,21 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
   // Manage the kernel.
   if (!ard)
   {
-    applyKernel(relevantVectors, points, matX);
+    arma::mat kernelMatrix;
+    CenterScaleDataPred(points, matX);
+    applyKernel(relevantVectors, matX, kernelMatrix);
+    matX = std::move(kernelMatrix);
   }
   else
-    matX = points;
-
-  arma::uvec allCols(matX.n_cols);
-  for (size_t i = 0; i < matX.n_cols; i++) { allCols(i) = i; }
-  
-  // Center and scaleData the points before applying the model.
-  predictions = omega.t() * matX.submat(activeSet, allCols)
-                + responsesOffset;
-
-  // Comptute the standard deviations
-  arma::mat O(matX.n_cols, matX.n_cols);
-  O = matX.submat(activeSet, allCols).t()
-      * matCovariance
-      * matX.submat(activeSet, allCols);
-  std = sqrt(diagvec(1 / beta + O).t());
+  {
+    arma::uvec allCols(points.n_cols);
+    for ( size_t i = 0; i < allCols.n_elem; ++i) { allCols(i) = i; }
+    matX = points.submat(activeSet, allCols);
+    CenterScaleDataPred(matX, matX);
+  }
+  predictions = omega.t() * matX + responsesOffset;
+  // Compute standard devaiations.
+  std = sqrt(Variance() + sum(matX % (matCovariance * matX)));
 }
 
 template<typename KernelType>
@@ -192,20 +189,6 @@ double RVMRegression<KernelType>::RMSE(const arma::mat& data,
   Predict(data, predictions);
   return sqrt(mean(square(responses - predictions)));
 }
-
-// template<typename KernelType>
-// arma::colvec RVMRegression<KernelType>::Omega() const
-// {
-//   // Get the size of the full solution with the offset.
-//   arma::colvec coefs = arma::zeros<arma::colvec>(dataOffset.size());
-//   // omega[i] = 0 for the inactive basis functions
-
-//   // Now reconstruct the full solution.
-//   for (size_t i = 0; i < activeSet.size(); i++)
-//     coefs[activeSet[i]] = omega(i);
-  
-//   return coefs;
-// }
 
 template<typename KernelType>
 void RVMRegression<KernelType>::applyKernel(const arma::mat& matX,
@@ -304,4 +287,8 @@ void RVMRegression<KernelType>::CenterScaleDataPred(const arma::mat& data,
   else 
     dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
 }
+
+} // namespace regression
+} // namespace mlpack
+
 #endif
