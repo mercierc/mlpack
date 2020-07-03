@@ -22,9 +22,9 @@ RVMRegression<KernelType>::RVMRegression(const KernelType& kernel,
                                          const bool centerData,
                                          const bool scaleData,
                                          const bool ard,
-					 double alphaThresh,
-					 double tol,
-					 int nIterMax) :
+                                         double alphaThresh,
+                                         double tol,
+                                         int nIterMax) :
 
   kernel(kernel),
   centerData(centerData),
@@ -152,7 +152,9 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
     matX = points.submat(activeSet, allCols);
     CenterScaleDataPred(matX, matX);
   }
-  predictions = omega.t() * matX + responsesOffset;
+
+  predictions = omega.t() * matX;
+  if (centerData) predictions += responsesOffset;
 }
 
 template<typename KernelType>
@@ -176,7 +178,9 @@ void RVMRegression<KernelType>::Predict(const arma::mat& points,
     matX = points.submat(activeSet, allCols);
     CenterScaleDataPred(matX, matX);
   }
-  predictions = omega.t() * matX + responsesOffset;
+  
+  predictions = omega.t() * matX;
+  if (centerData) predictions += responsesOffset;
   // Compute standard devaiations.
   std = sqrt(Variance() + sum(matX % (matCovariance * matX)));
 }
@@ -241,9 +245,12 @@ double RVMRegression<KernelType>::CenterScaleData(
   // Initialize the offsets to their neutral forms.
   responsesOffset = 0.0;
   if (!centerData && !scaleData)
-  { 
-    dataProc = data;
-    responsesProc = responses;
+  {
+    dataProc = arma::mat(const_cast<double*>(data.memptr()), data.n_rows, 
+                                             data.n_cols, false, true);
+    responsesProc = arma::rowvec(const_cast<double*>(responses.memptr()),
+                                                     responses.n_elem, false,
+                                                     true);
   }
 
   else if (centerData && !scaleData)
@@ -256,14 +263,17 @@ double RVMRegression<KernelType>::CenterScaleData(
 
   else if (!centerData && scaleData)
   {
-    dataScale = stddev(data, 1, 1);
+    dataScale = stddev(data, 0, 1);
     dataProc = data.each_col() / dataScale;
+    responsesProc = arma::rowvec(const_cast<double*>(responses.memptr()),
+                                                     responses.n_elem, false,
+                                                     true);
   }
 
   else
   {
     dataOffset = mean(data, 1);
-    dataScale = stddev(data, 1, 1);
+    dataScale = stddev(data, 0, 1);
     responsesOffset = mean(responses);
     dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
     responsesProc = responses - responsesOffset;
@@ -272,20 +282,30 @@ double RVMRegression<KernelType>::CenterScaleData(
 }
 
 template<typename KernelType>
-void RVMRegression<KernelType>::CenterScaleDataPred(const arma::mat& data,
-					            arma::mat& dataProc) const
+void RVMRegression<KernelType>::CenterScaleDataPred(
+    const arma::mat& data,
+    arma::mat& dataProc) const
 {
   if (!centerData && !scaleData)
-  dataProc = data;
-  
+  {
+    dataProc = arma::mat(const_cast<double*>(data.memptr()), data.n_rows, 
+                         data.n_cols, false, true);
+  }
+
   else if (centerData && !scaleData)
+  {
     dataProc = data.each_col() - dataOffset;
+  }
 
   else if (!centerData && scaleData)
+  {  
     dataProc = data.each_col() / dataScale;
+  }
 
-  else 
+  else
+  {
     dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
+  }
 }
 
 } // namespace regression
