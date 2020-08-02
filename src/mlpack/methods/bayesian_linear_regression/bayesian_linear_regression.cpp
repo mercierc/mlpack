@@ -1,5 +1,5 @@
 /**
- * @file bayesian_linear_regression.cpp
+ * @file methods/bayesian_linear_regression/bayesian_linear_regression.cpp
  * @author Clement Mercier 
  *
  * Implementation of Bayesian linear regression.
@@ -18,12 +18,16 @@ using namespace mlpack::regression;
 
 BayesianLinearRegression::BayesianLinearRegression(const bool centerData,
                                                    const bool scaleData,
-                                                   const int nIterMax,
+                                                   const size_t nIterMax,
                                                    const double tol) :
   centerData(centerData),
   scaleData(scaleData),
   nIterMax(nIterMax),
-  tol(tol)
+  tol(tol),
+  responsesOffset(0.0),
+  alpha(0.0),
+  beta(0.0),
+  gamma(0.0)
 {/* Nothing to do */}
 
 double BayesianLinearRegression::Train(const arma::mat& data,
@@ -33,33 +37,23 @@ double BayesianLinearRegression::Train(const arma::mat& data,
 
   arma::mat phi;
   arma::rowvec t;
-  arma::colvec eigval;
-  arma::mat V;
+  arma::colvec eigVal;
+  arma::mat eigVec;
 
   // Preprocess the data. Center and scale.
-  responsesOffset = CenterScaleData(data,
-                                    responses,
-                                    centerData,
-                                    scaleData,
-                                    phi,
-                                    t,
-                                    dataOffset,
-                                    dataScale);
+  responsesOffset = CenterScaleData(data, responses, phi, t);
 
-  if (arma::eig_sym(eigval, V, arma::symmatu(phi * phi.t())) == false)
+  if (!arma::eig_sym(eigVal, eigVec, arma::symmatu(phi * phi.t())))
   {
-    Log::Warn << "BayesianLinearRegression::Train(): Eigendecomposition "
-              << "of covariance failed!"
-              << std::endl;
-    throw std::runtime_error("eig_sym() failed.");
+    Log::Fatal << "BayesianLinearRegression::Train(): Eigendecomposition "
+               << "of covariance failed!" << std::endl;
   }
 
   // Compute this quantities once and for all.
-  const arma::mat Vinv = inv(V);
-  const arma::colvec VinvPhitT = Vinv * phi * t.t();
+  const arma::mat eigVecInv = inv(eigVec);
+  const arma::colvec eigVecInvPhitT = eigVecInv * phi * t.t();
 
-  // Initialize the hyperparameters and
-  // begin with an infinitely broad prior.
+  // Initialize the hyperparameters and begin with an infinitely broad prior.
   alpha = 1e-6;
   beta =  1 / (var(t, 1) * 0.1);
 
@@ -72,11 +66,10 @@ double BayesianLinearRegression::Train(const arma::mat& data,
     deltaBeta = -beta;
 
     // Update the solution.
-    omega = 1 / (eigval + (alpha / beta));
-    omega = V * diagmat(omega) * VinvPhitT;
+    omega = eigVec * diagmat(1 / (eigVal + (alpha / beta))) * eigVecInvPhitT;
 
     // Update alpha.
-    gamma = sum(eigval / (alpha / beta + eigval));
+    gamma = sum(eigVal / (alpha / beta + eigVal));
     alpha = gamma / dot(omega, omega);
 
     // Update beta.
@@ -89,10 +82,8 @@ double BayesianLinearRegression::Train(const arma::mat& data,
     crit = std::abs(deltaAlpha / alpha + deltaBeta / beta);
     i++;
   }
-  // Compute the covariance matrice for the uncertaities later.
-  matCovariance = std::move(V);
-  matCovariance *= diagmat(1 / (beta * eigval + alpha));
-  matCovariance *= Vinv;
+  // Compute the covariance matrix for the uncertainties later.
+  matCovariance = eigVec * diagmat(1 / (beta * eigVal + alpha)) * eigVecInv;
 
   Timer::Stop("bayesian_linear_regression");
 
@@ -102,21 +93,22 @@ double BayesianLinearRegression::Train(const arma::mat& data,
 void BayesianLinearRegression::Predict(const arma::mat& points,
                                        arma::rowvec& predictions) const
 {
-  // y_hat = w^T * (X - mu) / sigma + y_mean.
-  predictions = omega.t() * ((points.each_col() - dataOffset).each_col()
-                            / dataScale);
-  predictions += responsesOffset;
+  // Center and scale the points before applying the model.
+  arma::mat matX;
+  CenterScaleDataPred(points, matX);
+  predictions = omega.t() * matX + responsesOffset;
 }
 
 void BayesianLinearRegression::Predict(const arma::mat& points,
                                        arma::rowvec& predictions,
                                        arma::rowvec& std) const
 {
-  // Center and scaleData the points before applying the model.
-  const arma::mat X = (points.each_col() - dataOffset).each_col() / dataScale;
-  predictions = omega.t() * X;
-  predictions += responsesOffset;
-  std = sqrt(Variance() + sum((X % (matCovariance * X)), 0));
+  // Center and scale the points before applying the model.
+  arma::mat matX;
+  CenterScaleDataPred(points, matX);
+  predictions = omega.t() * matX + responsesOffset;
+  // Compute the standard deviation for each point.
+  std = sqrt(Variance() + sum(matX % (matCovariance * matX), 0));
 }
 
 double BayesianLinearRegression::RMSE(const arma::mat& data,
@@ -129,36 +121,68 @@ double BayesianLinearRegression::RMSE(const arma::mat& data,
 
 double BayesianLinearRegression::CenterScaleData(const arma::mat& data,
                                                  const arma::rowvec& responses,
-                                                 bool centerData,
-                                                 bool scaleData,
                                                  arma::mat& dataProc,
-                                                 arma::rowvec& responsesProc,
-                                                 arma::colvec& dataOffset,
-                                                 arma::colvec& dataScale)
+                                                 arma::rowvec& responsesProc)
 {
-  // Initialize the offsets to their neutral forms.
-  dataOffset = arma::zeros<arma::colvec>(data.n_rows);
-  dataScale = arma::ones<arma::colvec>(data.n_rows);
-  responsesOffset = 0.0;
+  if (!centerData && !scaleData)
+  {
+    dataProc = arma::mat(const_cast<double*>(data.memptr()), data.n_rows,
+                                             data.n_cols, false, true);
+    responsesProc = arma::rowvec(const_cast<double*>(responses.memptr()),
+                                                     responses.n_elem, false,
+                                                     true);
+  }
 
-  if (centerData)
+  else if (centerData && !scaleData)
   {
     dataOffset = mean(data, 1);
     responsesOffset = mean(responses);
+    dataProc = data.each_col() - dataOffset;
+    responsesProc = responses - responsesOffset;
   }
 
-  if (scaleData)
+  else if (!centerData && scaleData)
+  {
     dataScale = stddev(data, 0, 1);
+    dataProc = data.each_col() / dataScale;
+    responsesProc = arma::rowvec(const_cast<double*>(responses.memptr()),
+                                                     responses.n_elem, false,
+                                                     true);
+  }
 
-  // Copy data and response before the processing.
-  dataProc = data;
-  // Center the data.
-  dataProc.each_col() -= dataOffset;
-  // Scale the data.
-  dataProc.each_col() /= dataScale;
-  // Center the responses.
-  responsesProc = responses - responsesOffset;
-
+  else
+  {
+    dataOffset = mean(data, 1);
+    dataScale = stddev(data, 0, 1);
+    responsesOffset = mean(responses);
+    dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
+    responsesProc = responses - responsesOffset;
+  }
   return responsesOffset;
 }
 
+void BayesianLinearRegression::CenterScaleDataPred(
+    const arma::mat& data,
+    arma::mat& dataProc) const
+{
+  if (!centerData && !scaleData)
+  {
+    dataProc = arma::mat(const_cast<double*>(data.memptr()), data.n_rows,
+                         data.n_cols, false, true);
+  }
+
+  else if (centerData && !scaleData)
+  {
+    dataProc = data.each_col() - dataOffset;
+  }
+
+  else if (!centerData && scaleData)
+  {
+    dataProc = data.each_col() / dataScale;
+  }
+
+  else
+  {
+    dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
+  }
+}

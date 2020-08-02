@@ -1,8 +1,8 @@
 /**
- * @file bayesian_linear_regression_test.cpp
+ * @file tests/main_tests/bayesian_linear_regression_test.cpp
  * @author Clement Mercier
  *
- * Test mlpackMain() of pca_main.cpp.
+ * Test mlpackMain() of bayesian_linear_regression_main.cpp.
  *
  * mlpack is free software; you may redistribute it and/or modify it under the
  * terms of the 3-clause BSD license.  You should have received a copy of the
@@ -30,14 +30,14 @@ struct BRTestFixture
   BRTestFixture()
   {
     // Cache in the options for this program.
-    CLI::RestoreSettings(testName);
+    IO::RestoreSettings(testName);
   }
 
   ~BRTestFixture()
   {
     // Clear the settings.
     bindings::tests::CleanMemory();
-    CLI::ClearSettings();
+    IO::ClearSettings();
   }
 };
 
@@ -49,24 +49,21 @@ BOOST_FIXTURE_TEST_SUITE(BayesianLinearRegressionMainTest, BRTestFixture);
 BOOST_AUTO_TEST_CASE(BRCenter0Scale0)
 {
   int n = 50, m = 4;
-  arma::mat X = arma::randu<arma::mat>(m, n);
-  arma::colvec omega = arma::randu<arma::rowvec>(m);
-  arma::mat y =  omega * X;
+  arma::mat matX = arma::randu<arma::mat>(m, n);
+  arma::rowvec omega = arma::randu<arma::rowvec>(m);
+  arma::rowvec y =  omega * matX;
 
-  SetInputParam("input", std::move(X));
+  SetInputParam("input", std::move(matX));
   SetInputParam("responses", std::move(y));
-  SetInputParam("center", 0);
+  SetInputParam("center", false);
 
   mlpackMain();
 
   BayesianLinearRegression* estimator =
-  CLI::GetParam<BayesianLinearRegression*>("output_model");
+      IO::GetParam<BayesianLinearRegression*>("output_model");
 
-  const arma::colvec dataScale = estimator->DataScale();
-  const arma::colvec dataOffset = estimator->DataOffset();
-
-  BOOST_REQUIRE(sum(dataOffset) == 0);
-  BOOST_REQUIRE(sum(dataScale) == m);
+  BOOST_REQUIRE(estimator->DataOffset().n_elem == 0);
+  BOOST_REQUIRE(estimator->DataScale().n_elem == 0);
 }
 
 /**
@@ -75,34 +72,72 @@ BOOST_AUTO_TEST_CASE(BRCenter0Scale0)
 BOOST_AUTO_TEST_CASE(BayesianLinearRegressionSavedEqualCode)
 {
   int n = 10, m = 4;
-  arma::mat X = arma::randu<arma::mat>(m, n);
-  arma::mat Xtest = arma::randu<arma::mat>(m, 2 * n);
-  const arma::colvec omega = arma::randu<arma::rowvec>(m);
-  arma::mat y =  omega * X;
+  arma::mat matX = arma::randu<arma::mat>(m, n);
+  arma::mat matXtest = arma::randu<arma::mat>(m, 2 * n);
+  const arma::rowvec omega = arma::randu<arma::rowvec>(m);
+  arma::rowvec y =  omega * matX;
 
   BayesianLinearRegression model;
-  model.Train(X, y);
+  model.Train(matX, y);
 
   arma::rowvec responses;
-  model.Predict(Xtest, responses);
+  model.Predict(matXtest, responses);
 
-  SetInputParam("input", std::move(X));
+  SetInputParam("input", std::move(matX));
   SetInputParam("responses", std::move(y));
 
   mlpackMain();
 
-  CLI::GetSingleton().Parameters()["input"].wasPassed = false;
-  CLI::GetSingleton().Parameters()["responses"].wasPassed = false;
+  IO::GetSingleton().Parameters()["input"].wasPassed = false;
+  IO::GetSingleton().Parameters()["responses"].wasPassed = false;
 
   SetInputParam("input_model",
-                CLI::GetParam<BayesianLinearRegression*>("output_model"));
-  SetInputParam("test", std::move(Xtest));
+                IO::GetParam<BayesianLinearRegression*>("output_model"));
+  SetInputParam("test", std::move(matXtest));
 
   mlpackMain();
 
   arma::mat ytest = std::move(responses);
   // Check that initial output and output using saved model are same.
-  CheckMatrices(ytest, CLI::GetParam<arma::mat>("output_predictions"));
+  CheckMatrices(ytest, IO::GetParam<arma::mat>("predictions"));
+}
+
+/**
+ * Check a crash happens if neither input or input_model are specified.
+ * Check a crash happens if both input and input_model are specified.
+ */
+BOOST_AUTO_TEST_CASE(CheckParamsPassed)
+{
+  int n = 10, m = 4;
+  arma::mat matX = arma::randu<arma::mat>(m, n);
+  arma::mat matXtest = arma::randu<arma::mat>(m, 2 * n);
+  const arma::rowvec omega = arma::randu<arma::rowvec>(m);
+  arma::rowvec y =  omega * matX;
+
+  BayesianLinearRegression model;
+  model.Train(matX, y);
+
+  arma::rowvec responses;
+  model.Predict(matXtest, responses);
+
+  // Check that std::runtime_error is thrown if neither input or input_model
+  // is specified.
+  SetInputParam("responses", std::move(y));
+
+  BOOST_REQUIRE_THROW(mlpackMain(), std::runtime_error);
+
+  // Continue only with input passed.
+  SetInputParam("input", std::move(matX));
+  mlpackMain();
+
+  // Now pass the previous trained model and one input matrix at the same time.
+  // An error should occur.
+  SetInputParam("input", std::move(matX));
+  SetInputParam("input_model",
+                IO::GetParam<BayesianLinearRegression*>("output_model"));
+  SetInputParam("test", std::move(matXtest));
+
+  BOOST_REQUIRE_THROW(mlpackMain(), std::runtime_error);
 }
 
 BOOST_AUTO_TEST_SUITE_END();
