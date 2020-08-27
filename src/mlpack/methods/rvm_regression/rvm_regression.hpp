@@ -160,6 +160,12 @@ public:
    */
   double ResponsesOffset() const { return responsesOffset; }
 
+  /**
+   * Get the relevant vectors.
+   * @return relevantVectors
+   */
+  const arma::mat& RelevantVectors() const { return relevantVectors; }
+
 private:
   //! Center the data if true.
   bool centerData;

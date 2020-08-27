@@ -105,7 +105,7 @@ void RVMRegression<KernelType>::Train(const arma::mat& data,
     alpha(activeSet) = gammai / (omega % omega); 
 
     // Update beta.
-    const arma::rowvec temp = t -  omega.t() * subPhi;
+    const arma::rowvec temp = t - omega.t() * subPhi;
     beta = (phi.n_cols - sum(gammai)) / dot(temp, temp);
 
     // Comptute the stopping criterion.
@@ -263,7 +263,7 @@ double RVMRegression<KernelType>::CenterScaleData(
 
   else if (!centerData && scaleData)
   {
-    dataScale = stddev(data, 0, 1);
+    dataScale = stddev(data, 1, 1);
     dataProc = data.each_col() / dataScale;
     responsesProc = arma::rowvec(const_cast<double*>(responses.memptr()),
                                                      responses.n_elem, false,
@@ -273,7 +273,7 @@ double RVMRegression<KernelType>::CenterScaleData(
   else
   {
     dataOffset = mean(data, 1);
-    dataScale = stddev(data, 0, 1);
+    dataScale = stddev(data, 1, 1);
     responsesOffset = mean(responses);
     dataProc = (data.each_col() - dataOffset).each_col() / dataScale;
     responsesProc = responses - responsesOffset;
