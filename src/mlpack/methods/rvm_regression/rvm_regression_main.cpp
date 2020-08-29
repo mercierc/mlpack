@@ -21,77 +21,93 @@ using namespace mlpack;
 using namespace mlpack::regression;
 using namespace mlpack::util;
 
-// PROGRAM_INFO("RVMRegression",
-//     // Short description.
-//     "An implementation of the bayesian linear regression, also known "
-//     "as the Bayesian linear regression. This can train a Bayesian linear "
-//     "regression model and use that model or a pre-trained model to output "
-//     "regression "
-//     "predictions for a test set.",
-//     // Long description.
-//     "An implementation of the bayesian linear regression, also known"
-//     "as the Bayesian linear regression.\n "
-//     "This is a probabilistic view and implementation of the linear regression. "
-//     "Final solution is obtained by comptuting a posterior distribution from "
-//     "gaussian likelihood and a zero mean gaussian isotropic prior distribution "
-//     "on the solution. "
-//     "\n"
-//     "Optimization is AUTOMATIC and does not require cross validation. "
-//     "The optimization is performed by maximization of the evidence function. "
-//     "Parameters are tunned during the maximization of the marginal likelihood. "
-//     "This procedure includes the Ockham's razor that penalizes over complex "
-//     "solutions. "
-//     "\n\n"
-//     "This program is able to train a Bayesian linear regression model or load "
-//     "a model from file, output regression predictions for a test set, and save "
-//     "the trained model to a file. The Bayesian linear regression algorithm is "
-//     "described in more detail below:"
-//     "\n\n"
-//     "Let X be a matrix where each row is a point and each column is a "
-//     "dimension, t is a vector of targets, alpha is the precision of the "
-//     "gaussian prior distribtion of w, and w is solution to determine. "
-//     "\n\n"
-//     "The Bayesian linear regression comptutes the posterior distribution of "
-//     "the parameters by the Bayes's rule : "
-//     "\n\n"
-//     " p(w|X) = p(X,t|w) * p(w|alpha) / p(X)"
-//     "\n\n"
-//     "To train a BayesianLinearRegression model, the " +
-//     PRINT_PARAM_STRING("input") + " and " + PRINT_PARAM_STRING("responses") +
-//     "parameters must be given. The " + PRINT_PARAM_STRING("center") +
-//     "and " + PRINT_PARAM_STRING("scale") + " parameters control the "
-//     "centering and the normalizing options. A trained model can be saved with "
-//     "the " + PRINT_PARAM_STRING("output_model") + ". If no training is desired "
-//     "at all, a model can be passed via the " +
-//     PRINT_PARAM_STRING("input_model") + " parameter."
-//     "\n\n"
-//     "The program can also provide predictions for test data using either the "
-//     "trained model or the given input model.  Test points can be specified "
-//     "with the " + PRINT_PARAM_STRING("test") + " parameter.  Predicted "
-//     "responses to the test points can be saved with the " +
-//     PRINT_PARAM_STRING("output_predictions") + " output parameter. The "
-//     "corresponding standard deviation can be save by precising the " +
-//     PRINT_PARAM_STRING("output_std") + " parameter."
-//     "\n\n"
-//     "For example, the following command trains a model on the data " +
-//     PRINT_DATASET("data") + " and responses " + PRINT_DATASET("responses") +
-//     "with center set to true and scale set to false (so, Bayesian "
-//     "linear regression is being solved, and then the model is saved to " +
-//     PRINT_MODEL("bayesian_linear_regression_model") + ":"
-//     "\n\n" +
-//     PRINT_CALL("bayesian_linear_regression", "input", "data", "responses",
-//                "responses", "center", 1, "scale", 0, "output_model",
-//                "bayesian_linear_regression_model") +
-//     "\n\n"
-//     "The following command uses the " +
-//     PRINT_MODEL("bayesian_linear_regression_model") + " to provide predicted " +
-//     " responses for the data " + PRINT_DATASET("test") + " and save those " +
-//     " responses to " + PRINT_DATASET("test_predictions") + ": "
-//     "\n\n" +
-//     PRINT_CALL("bayesian_linear_regression", "input_model",
-//                "bayesian_linear_regression_model", "test", "test",
-//                "output_predictions", "test_predictions"));
+// Program Name.
+BINDING_NAME("Relevance Vector Machine for regression");
 
+// Short description.
+BINDING_SHORT_DESC(
+    "An implementation of the Relevance Vector Machine (RVM) that can also be "
+    "used for ARD regression on a given dataset if the kernel is not specified.");
+
+// Long description.
+BINDING_LONG_DESC(
+    "This program trains a RVM model for regression on the dataset provided "
+    "with the specified kernel. RVM is a bayesian kernel based technique "
+    "similar to the SVM whose the solution is much more sparse, making this "
+    "model fast to apply on test data. The optimization procedure maximizes "
+    "the log marginal likelihood leading to automatic determination of the "
+    "automaticaly determines the best hyperparameters set associated to the "
+    "relevant vectors."
+    "\n\n"
+    "To train a RVMRegression model, the " +
+    PRINT_PARAM_STRING("input") + " and " + PRINT_PARAM_STRING("responses") +
+    "parameters must be given. The " + PRINT_PARAM_STRING("center") +
+    "and " + PRINT_PARAM_STRING("scale") + " parameters control the "
+    "centering and the normalizing options. A trained model can be saved with "
+    "the " + PRINT_PARAM_STRING("output_model") + ". If no training is desired "
+    "at all, a model can be passed via the " +
+    PRINT_PARAM_STRING("input_model") + " parameter."
+    "\n\n"
+    "The program can also provide predictions for test data using either the "
+    "trained model or the given input model. Test points can be specified "
+    "with the " + PRINT_PARAM_STRING("test") + " parameter.  Predicted "
+    "responses to the test points can be saved with the " +
+    PRINT_PARAM_STRING("predictions") + " output parameter. The "
+    "corresponding standard deviation can be save by precising the " +
+    PRINT_PARAM_STRING("stds") + " parameter."
+    "If the " + PRINT_PARAM_STRING("kernel") + "is not specified the model "
+    "optimized is a bayesian linear regression associated to an ARD prior "
+    "leading sparse solution over the variable domain."
+    "\n"
+    "The supported kernel are lister below:"
+    "\n\n"
+    " * 'linear': the standard linear dot product (same as normal PCA):\n"
+    "    K(x, y) = x^T y\n"
+    "\n"
+    " * 'gaussian': a Gaussian kernel; requires bandwidth:\n"
+    "    K(x, y) = exp(-(|| x - y || ^ 2) / (2 * (bandwidth ^ 2)))\n"
+    "\n"
+    " * 'polynomial': polynomial kernel; requires offset and degree:\n"
+    "    K(x, y) = (x^T y + offset) ^ degree\n"
+    "\n"
+    " * 'hyptan': hyperbolic tangent kernel; requires scale and offset:\n"
+    "    K(x, y) = tanh(scale * (x^T y) + offset)\n"
+    "\n"
+    " * 'laplacian': Laplacian kernel; requires bandwidth:\n"
+    "    K(x, y) = exp(-(|| x - y ||) / bandwidth)\n"
+    "\n"
+    " * 'epanechnikov': Epanechnikov kernel; requires bandwidth:\n"
+    "    K(x, y) = max(0, 1 - || x - y ||^2 / bandwidth^2)\n"
+    "\n"
+    " * 'cosine': cosine distance:\n"
+    "    K(x, y) = 1 - (x^T y) / (|| x || * || y ||)\n"
+    "\n"
+    "The parameters for each of the kernels should be specified with the "
+    "options " + PRINT_PARAM_STRING("bandwidth") + ", " +
+    PRINT_PARAM_STRING("kernel_scale") + ", " +
+    PRINT_PARAM_STRING("offset") + ", or " + PRINT_PARAM_STRING("degree") +
+    " (or a combination of those parameters).");
+
+//Example
+BINFING_EXAMPLE(
+    "For example, the following command trains a model on the data " +
+    PRINT_DATASET("data") + " and responses " + PRINT_DATASET("responses") +
+    "with center and scale set to true and a gaussian kernel of "
+    "bandwith 1.0. RVM is solved and the model is saved to " +
+    PRINT_MODEL("rvm_regression") + ":"
+    "\n\n" +
+    PRINT_CALL("rvm_regression", "input", "data", "responses", "responses", 
+               "center", 1, "scale", 1, "output_model", 
+               "rvm_regression_model", "kernel", "gaussian", "bandwidth", 1.0) +
+    "The following command uses the " + PRINT_MODEL("rvm_regression_model") + 
+    "to provide predicted responses for the data " + PRINT_DATASET("test") + 
+    "and save those responses to " + PRINT_DATASET("test_predictions") + ":"
+    "\n\n" + 
+    PRINT_CALL("rvm_regression", "input_model", "vm_regression_model", "test", 
+               "test", "predictions", "test_predictions") 
+
+;
+);
 // PARAM_MATRIX_IN("input", "Matrix of covariates (X).", "i");
 
 // PARAM_MATRIX_IN("responses", "Matrix of responses/observations (y).", "r");

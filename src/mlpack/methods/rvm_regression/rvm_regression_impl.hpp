@@ -30,7 +30,7 @@ RVMRegression<KernelType>::RVMRegression(const KernelType& kernel,
   centerData(centerData),
   scaleData(scaleData),
   ard(ard),
-  alphaThresh(1e-4),
+  alphaThresh(1e4),
   tol(1e-5),
   nIterMax(50) 
   { /*Nothing to do */ }
