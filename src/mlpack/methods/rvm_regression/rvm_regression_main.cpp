@@ -111,8 +111,8 @@ BINDING_EXAMPLE(
     "simple point estimate, the " + PRINT_PARAM_STRING("stds") + " parameter "
     "allows to save the prediction uncertainties: "
     "\n\n" +
-    PRINT_CALL("bayesian_linear_regression", "input_model",
-               "bayesian_linear_regression_model", "test", "test",
+    PRINT_CALL("rvm_regression", "input_model",
+               "rvm_regression_model", "test", "test",
                "predictions", "test_predictions", "stds", "stds"));
 
 
@@ -120,10 +120,9 @@ BINDING_EXAMPLE(
 
 PARAM_MATRIX_IN("input", "Matrix of covariates (X).", "i");
 PARAM_ROW_IN("responses", "Matrix of responses/observations (y).", "r");
-PARAM_MODEL_IN(BayesianLinearRegression, "input_model", "Trained "
-               "BayesianLinearRegression model to use.", "m");
-PARAM_MODEL_OUT(BayesianLinearRegression, "output_model", "Output "
-                "BayesianLinearRegression model.", "M");
+PARAM_MODEL_IN(RVMRegression<LinearRegression>, "input_model", "Trained RVMRegression model to use.", "m");
+PARAM_MODEL_OUT(RVMRegression, "output_model", "Output "
+                "RVMRegression model.", "M");
 PARAM_MATRIX_IN("test", "Matrix containing points to regress on (test "
                 "points).", "t");
 PARAM_MATRIX_OUT("predictions", "If --test_file is specified, this "
@@ -134,7 +133,7 @@ PARAM_FLAG("center", "Center the data and fit the intercept if enabled.", "c");
 PARAM_FLAG("scale", "Scale each feature by their standard deviations if "
            "enabled.", "s");
 PARAM_STRING_IN("kernel", "The kernel to use; see the above documentation "
-    "for the list of usable kernels.", "k");
+    "for the list of usable kernels.", "k", "");
 PARAM_DOUBLE_IN("kernel_scale", "Scale, for 'hyptan' kernel.", "S", 1.0);
 PARAM_DOUBLE_IN("offset", "Offset, for 'hyptan' and 'polynomial' kernels.", "O",
     0.0);
@@ -245,7 +244,7 @@ static void mlpackMain()
   //     const double bandwidth = IO::GetParam<double>("bandwidth");
   //     GaussianKernel kernel(bandwidth);
 
-  //   case "ard":
+  //   case "":
   //     LinearKernel kernel;
   //     const bool ard = true;
 

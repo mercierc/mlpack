@@ -57,7 +57,7 @@ public:
   RVMRegression(const KernelType& kernel,
 		const bool centerData = false,
                 const bool scaleData = false,
-		const bool ard = true);
+		const bool ard = false);
    
   /**
    * Run Relevance Vector Machine for regression. The input matrix 

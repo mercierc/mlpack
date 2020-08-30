@@ -3,7 +3,6 @@
 set(SOURCES
   rvm_regression.hpp
   rvm_regression_impl.hpp
-  rvm_regression_main.cpp
 )
 
 # add directory name to sources
