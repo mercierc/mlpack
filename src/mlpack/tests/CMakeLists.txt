@@ -66,6 +66,7 @@ add_executable(mlpack_test
   reward_clipping_test.cpp
   rl_components_test.cpp
   rvm_regression_test.cpp
+  scaling_test.cpp
   serialization.cpp
   serialization.hpp
   serialization_test.cpp
