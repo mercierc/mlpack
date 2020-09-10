@@ -118,10 +118,34 @@ BINDING_EXAMPLE(
 
 // See also...
 
+// When we save a model, we must also save the class mappings.  So we use this
+// auxiliary structure to store both the perceptron and the mapping, and we'll
+// save this.
+class RVMRegressionModel
+{
+ private:
+  RVMRegression<> r;
+  Col<size_t> map;
+
+ public:
+  RVMRegression<>& R() { return r; }
+  const RVMRegression<>& R() const { return r; }
+
+  Col<size_t>& Map() { return map; }
+  const Col<size_t>& Map() const { return map; }
+
+  template<typename Archive>
+  void serialize(Archive& ar, const unsigned int /* version */)
+  {
+    ar & BOOST_SERIALIZATION_NVP(r);
+    ar & BOOST_SERIALIZATION_NVP(map);
+  }
+};
+
 PARAM_MATRIX_IN("input", "Matrix of covariates (X).", "i");
 PARAM_ROW_IN("responses", "Matrix of responses/observations (y).", "r");
-PARAM_MODEL_IN(RVMRegression<LinearRegression>, "input_model", "Trained RVMRegression model to use.", "m");
-PARAM_MODEL_OUT(RVMRegression, "output_model", "Output "
+PARAM_MODEL_IN(RVMRegressionModel, "input_model", "Trained RVMRegression model to use.", "m");
+PARAM_MODEL_OUT(RVMRegressionModel, "output_model", "Output "
                 "RVMRegression model.", "M");
 PARAM_MATRIX_IN("test", "Matrix containing points to regress on (test "
                 "points).", "t");
