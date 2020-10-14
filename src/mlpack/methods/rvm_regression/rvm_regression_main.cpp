@@ -22,8 +22,7 @@ using namespace mlpack::regression;
 using namespace mlpack::util;
 
 // Program Name.
-BINDING_NAME("Kernel Principal Components Analysis");
-// BINDING_NAME("Relevance Vector Machine for regression");
+BINDING_NAME("Relevance Vector Machine for regression");
 
 // Short description.
 BINDING_SHORT_DESC(
@@ -255,7 +254,7 @@ static void mlpackMain()
   //   const string kernelType = "ard";
   // }
 
-  // // Instanciation of the estimator acording to the kernel specifications.
+  // // Instanciation of the estimator according to the kernel specifications.
   // bool ModelPassed = IO::HasParam("input_model");
   // bool ard = false;
 
