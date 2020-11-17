@@ -308,6 +308,22 @@ void RVMRegression<KernelType>::CenterScaleDataPred(
   }
 }
 
+
+/**
+ * Serialize the RVM regression model.
+*/
+template<typename KernelType>
+template<typename Archive>
+void RVMRegression<KernelType>::serialize(Archive& ar, 
+                                          const unsigned int /* version */)
+{
+  ar & BOOST_SERIALIZATION_NVP(centerData);
+  ar & BOOST_SERIALIZATION_NVP(scaleData);
+  ar & BOOST_SERIALIZATION_NVP(relevantVectors);
+  ar & BOOST_SERIALIZATION_NVP(omega);
+  ar & BOOST_SERIALIZATION_NVP(responsesOffset);
+}
+
 } // namespace regression
 } // namespace mlpack
 

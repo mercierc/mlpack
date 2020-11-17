@@ -166,6 +166,12 @@ public:
    */
   const arma::mat& RelevantVectors() const { return relevantVectors; }
 
+  /**
+   * Serialize the RVM regression model.
+   */
+  template<typename Archive>
+  void serialize(Archive& ar, const unsigned int /* version */);
+
 private:
   //! Center the data if true.
   bool centerData;
@@ -266,25 +272,11 @@ private:
   void applyKernel(const arma::mat& matX,
 		   arma::mat& kernelMatrix) const;
 };
-
+       
 } // namespace regression
 } // namespace mlpack
 
 // Include implementation.
 #include "rvm_regression_impl.hpp"
 
-/**
- * Serialize the RVM regression model.
- */
-template<typename KernelType>
-template<typename Archive>
-void RVMRegression<KernelType>::serialize(Archive& ar, 
-                                          const unsigned int /* version */)
-{
-  ar & BOOST_SERIALIZATION_NVP(centerData);
-  ar & BOOST_SERIALIZATION_NVP(scaleData);
-  ar & BOOST_SERIALIZATION_NVP(relevantVectors);
-  ar & BOOST_SERIALIZATION_NVP(omega);
-  ar & BOOST_SERIALIZATION_NVP(responsesOffset);
-}
 #endif
