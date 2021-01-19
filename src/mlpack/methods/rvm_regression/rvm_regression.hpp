@@ -14,7 +14,7 @@
 namespace mlpack{
 namespace regression{
 
-  template<typename KernelType=mlpack::kernel::LinearKernel>
+template<typename KernelType=mlpack::kernel::LinearKernel>
 class RVMRegression
 {
 public:
@@ -31,13 +31,13 @@ public:
    * @param scaleData Whether or to scaleData the data according to the 
    *    standard deviation of each feature.
    **/
-  RVMRegression(const KernelType& kernel,
-                const bool centerData,
-                const bool scaleData,
-                const bool ard,
-		const double alphaTresh,
-		const double tol,
-		const int nIterMax);
+  RVMRegression(const KernelType& kernel=mlpack::kernel::LinearKernel(),
+                const bool centerData=false,
+                const bool scaleData=false,
+                const bool ard=false,
+		const double alphaTresh=1e4,
+		const double tol=1e-5,
+		const int nIterMax=300);
 
   /**
    * Set the parameters of the ARD regression (Automatic Relevance Determination) 
@@ -54,7 +54,7 @@ public:
    * @param scaleData Whether or to scaleData the data according to the 
    *    standard deviation of each feature.
    **/
-  RVMRegression(const KernelType& kernel,
+  RVMRegression(const KernelType& kernel=mlpack::kernel::LinearKernel(),
 		const bool centerData = false,
                 const bool scaleData = false,
 		const bool ard = false);
