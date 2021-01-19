@@ -1,8 +1,8 @@
 /**
- * @file bayesian_linear_regression_main.cpp
+ * @file rvm_regression_main.cpp
  * @author Clement Mercier
  *
- * Executable for BayesianLinearRegression.
+ * Executable for RVMRegression.
  *
  * mlpack is free software; you may redistribute it and/or modify it under the
  * terms of the 3-clause BSD license.  You should have received a copy of the
